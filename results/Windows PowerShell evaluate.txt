@@ -1,0 +1,19 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\surya\.gemini\antigravity\scratch\GenAI> .\.venv\Scripts\Activate.ps1
+(.venv) PS C:\Users\surya\.gemini\antigravity\scratch\GenAI> python evaluate.py
+Loaded 'best_model.pth' successfully.
+
+--- sCT-RDT OCCLUSION BENCHMARK ---
+[AstroDataset] Merged targets from 'training_set_metadata.csv' & mapped 14 classes to [0-13]
+[AstroDataset] Compiling DataFrame to numpy arrays for memory efficiency...
+Evaluating [0%]: 100%|█████████████████████████████████████████████████████████████████| 25/25 [00:40<00:00,  1.61s/it]
+Masking Level: 0%           | Accuracy: 0.6643 | Macro F1-Score: 0.5542
+Evaluating [50%_random]: 100%|█████████████████████████████████████████████████████████| 25/25 [00:37<00:00,  1.51s/it]
+Masking Level: 50%_random   | Accuracy: 0.5599 | Macro F1-Score: 0.4248
+Evaluating [75%_block]: 100%|██████████████████████████████████████████████████████████| 25/25 [00:33<00:00,  1.35s/it]
+Masking Level: 75%_block    | Accuracy: 0.3924 | Macro F1-Score: 0.3083
+(.venv) PS C:\Users\surya\.gemini\antigravity\scratch\GenAI>

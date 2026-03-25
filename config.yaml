@@ -1,0 +1,26 @@
+model:
+  d_model: 128
+  num_heads: 8
+  num_layers: 4
+  num_classes: 14        # 14 for PLAsTiCC, 2 for Kepler
+  dropout: 0.1
+  l_max: 1000.0          # Phase stretcher for scRoPE
+  ffn_dim: 512
+  use_passband_emb: true # Ablation toggles
+  use_time_emb: true
+  use_err_emb: true
+
+training:
+  batch_size: 64
+  learning_rate: 0.0003  # 3e-4
+  epochs: 50
+  weight_decay: 0.05
+  gamma_focal: 2.0       # For Focal Loss
+
+data:
+  max_seq_len: 256
+  train_path: "data/plasticc/PLAsTiCC-2018/training_set.csv"
+  val_path: "data/plasticc/PLAsTiCC-2018/training_set.csv"  # No separate val split; split programmatically
+  test_path: "data/plasticc/PLAsTiCC-2018/test_set_batch1.csv"  # Use batch1 for manageable test size
+  kepler_train_path: "data/kepler/archive/exoTrain.csv"
+  kepler_test_path: "data/kepler/archive/exoTest.csv"

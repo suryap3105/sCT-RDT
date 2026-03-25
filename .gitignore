@@ -1,0 +1,42 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Model checkpoints (can be hundreds of MB) ─────────────────────────────────
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# ── Datasets (intentionally excluded — see data/README.md) ───────────────────
+data/plasticc/
+data/kepler/
+
+# ── Logs and outputs ──────────────────────────────────────────────────────────
+logs/
+runs/
+*.log
+*.csv.tmp
+
+# ── OS and editor artefacts ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
