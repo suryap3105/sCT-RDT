@@ -48,6 +48,7 @@ class Full_sCTRDT_Model(nn.Module):
             nn.Linear(d_model, 1)
         )
         
+        self.dropout_classifier = nn.Dropout(config['dropout'])
         self.classifier = nn.Linear(d_model, config['num_classes'])
 
     def forward(self, flux, passband, t_raw, err, pad_mask=None):
@@ -92,6 +93,7 @@ class Full_sCTRDT_Model(nn.Module):
         # Weighted sum: [B, S] x [B, S, d_model] -> [B, d_model]
         Z = torch.sum(H_L * attn_weights.unsqueeze(-1), dim=1)
         
+        Z = self.dropout_classifier(Z)
         # Classification
         logits = self.classifier(Z)
         return logits

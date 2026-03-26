@@ -3,7 +3,7 @@ model:
   num_heads: 8
   num_layers: 4
   num_classes: 14        # 14 for PLAsTiCC, 2 for Kepler
-  dropout: 0.1
+  dropout: 0.3
   l_max: 1000.0          # Phase stretcher for scRoPE
   ffn_dim: 512
   use_passband_emb: true # Ablation toggles
@@ -14,8 +14,8 @@ training:
   batch_size: 64
   learning_rate: 0.0003  # 3e-4
   epochs: 50
-  weight_decay: 0.05
-  gamma_focal: 2.0       # For Focal Loss
+  weight_decay: 0.1
+  gamma_focal: 3.0       # For Focal Loss
 
 data:
   max_seq_len: 256

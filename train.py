@@ -29,28 +29,33 @@ def main():
 
     # NOTE: val_path is intentionally set to train_path in config.yaml because PLAsTiCC
     # ships a single training_set.csv — split programmatically here or use a separate CSV.
-    # Instantiate separately to apply occlusion (data augmentation) to training set ONLY.
-    clean_full_dataset = AstroDataset(config['data']['train_path'], config['data']['max_seq_len'], occlusion_level="0%")
+    full_dataset = AstroDataset(config['data']['train_path'], config['data']['max_seq_len'], occlusion_level="0%")
     
     if config['data']['train_path'] == config['data']['val_path']:
-        train_size = int(0.8 * len(clean_full_dataset))
-        val_size = len(clean_full_dataset) - train_size
-        
-        # Consistent random split indices
-        indices = torch.randperm(len(clean_full_dataset), generator=torch.Generator().manual_seed(42)).tolist()
-        
-        # Training dataset with 20% occlusion
-        aug_full_dataset = AstroDataset(config['data']['train_path'], config['data']['max_seq_len'], occlusion_level="20%")
-        train_dataset = torch.utils.data.Subset(aug_full_dataset, indices[:train_size])
-        
-        # Validation dataset perfectly clean
-        val_dataset = torch.utils.data.Subset(clean_full_dataset, indices[train_size:])
+        train_size = int(0.8 * len(full_dataset))
+        val_size = len(full_dataset) - train_size
+        train_dataset, val_dataset = torch.utils.data.random_split(
+            full_dataset, [train_size, val_size], generator=torch.Generator().manual_seed(42)
+        )
         print(f"Split dataset: {train_size} training samples, {val_size} validation samples.")
     else:
-        train_dataset = AstroDataset(config['data']['train_path'], config['data']['max_seq_len'], occlusion_level="20%")
+        train_dataset = full_dataset
         val_dataset   = AstroDataset(config['data']['val_path'], config['data']['max_seq_len'], occlusion_level="0%")
 
-    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], shuffle=True,  num_workers=0)
+    # Calculate generic sample weights for the WeightedRandomSampler
+    if hasattr(train_dataset, 'dataset'):
+        train_targets = torch.tensor(train_dataset.dataset.target[train_dataset.indices], dtype=torch.long)
+    else:
+        train_targets = torch.tensor(train_dataset.target, dtype=torch.long)
+        
+    class_counts = torch.bincount(train_targets, minlength=config['model']['num_classes']).float()
+    c_weights = torch.ones_like(class_counts) / torch.where(class_counts == 0, torch.ones_like(class_counts), class_counts)
+    sample_weights = c_weights[train_targets]
+    
+    sampler = torch.utils.data.WeightedRandomSampler(weights=sample_weights, num_samples=len(sample_weights), replacement=True)
+
+    # Use sampler instead of shuffle=True
+    train_loader = DataLoader(train_dataset, batch_size=config['training']['batch_size'], sampler=sampler, num_workers=0)
     val_loader   = DataLoader(val_dataset,   batch_size=config['training']['batch_size'], shuffle=False, num_workers=0)
 
     model = Full_sCTRDT_Model(config['model']).to(device)
@@ -60,9 +65,9 @@ def main():
         weight_decay=config['training']['weight_decay']
     )
     
-    # 1. CLASS IMBALANCE: Calculate dynamic alpha weights
-    class_weights = clean_full_dataset.get_class_weights(config['model']['num_classes']).to(device)
-    criterion = FocalLoss(gamma=config['training']['gamma_focal'], alpha=class_weights)
+    # 1. CLASS IMBALANCE: We use WeightedRandomSampler above to guarantee balanced mini-batches,
+    # so we drop alpha scaling in FocalLoss to avoid "double-correcting" which hurts convergence.
+    criterion = FocalLoss(gamma=config['training']['gamma_focal'], alpha=None)
     
     # 2. LR PLATEAU: Reduce learning rate when validation F1 stagnates
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
