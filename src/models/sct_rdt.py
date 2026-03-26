@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from .transformer import sCTRDT_EncoderBlock
 
 class Full_sCTRDT_Model(nn.Module):
@@ -14,8 +15,12 @@ class Full_sCTRDT_Model(nn.Module):
                 f"d_model ({d_model}) must be divisible by num_heads ({num_heads})."
             )
 
-        # Only flux and passband are embedded
-        self.flux_proj = nn.Linear(1, d_model)
+        # Deep Non-Linear Flux Embedding
+        self.flux_proj = nn.Sequential(
+            nn.Linear(1, d_model),
+            nn.GELU(),
+            nn.Linear(d_model, d_model)
+        )
         # num_embeddings=7 covers passbands 0-5 (PLAsTiCC 6-band) plus an
         # overflow bucket (index 6) used by the clamp guard in forward().
         self._num_passbands = 6
@@ -35,6 +40,14 @@ class Full_sCTRDT_Model(nn.Module):
         ])
 
         self.final_norm = nn.LayerNorm(d_model)
+        
+        # Attention Pooling Layer
+        self.pooling_attention = nn.Sequential(
+            nn.Linear(d_model, d_model),
+            nn.Tanh(),
+            nn.Linear(d_model, 1)
+        )
+        
         self.classifier = nn.Linear(d_model, config['num_classes'])
 
     def forward(self, flux, passband, t_raw, err, pad_mask=None):
@@ -60,18 +73,24 @@ class Full_sCTRDT_Model(nn.Module):
             
         H_L = self.final_norm(H)
         
-        # --- MASKED GLOBAL AVERAGE POOLING ---
+        # --- ATTENTION POOLING ---
+        # Get scalar attention score for each timestep: [B, S, 1] -> [B, S]
+        attn_scores = self.pooling_attention(H_L).squeeze(-1)
+        
         if pad_mask is not None:
-            # m_i \in {0, 1} where 1 is real data, 0 is padding
-            m = (~pad_mask.squeeze(1).squeeze(1)).float()
+            # Mask out padding tokens (set score to -inf before softmax)
+            m_pad = pad_mask.squeeze(1).squeeze(1) # True for padding
+            attn_scores = attn_scores.masked_fill(m_pad, float('-inf'))
             
-            # Eq: Z = \sum (H_{L,i} * m_i) / \sum m_i
-            valid_sum = torch.sum(H_L * m.unsqueeze(-1), dim=1)
-            valid_count = torch.clamp(torch.sum(m, dim=1, keepdim=True), min=1.0)
-            
-            Z = valid_sum / valid_count
-        else:
-            Z = H_L.mean(dim=1)
+        # Convert scores to probabilities
+        attn_weights = F.softmax(attn_scores, dim=1)
+        
+        # Failsafe: if an entire sequence is masked (all -inf), softmax produces NaNs
+        # Replace NaNs with 0 to prevent crashing the batch
+        attn_weights = torch.nan_to_num(attn_weights, nan=0.0)
+        
+        # Weighted sum: [B, S] x [B, S, d_model] -> [B, d_model]
+        Z = torch.sum(H_L * attn_weights.unsqueeze(-1), dim=1)
         
         # Classification
         logits = self.classifier(Z)
